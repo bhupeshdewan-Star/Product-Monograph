@@ -1,0 +1,16 @@
+streamlit>=1.28.0
+anthropic>=0.7.1
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+lxml>=4.9.3
+reportlab>=4.0.7
+pillow>=11.0.0
+pandas>=2.0.3
+python-dotenv>=1.0.0
+feedparser>=6.0.10
+arxiv>=1.4.7
+scholarly>=1.7.11
+python-docx>=0.8.11
+openai>=1.0.0
+groq>=0.4.0
+together>=0.2.0
