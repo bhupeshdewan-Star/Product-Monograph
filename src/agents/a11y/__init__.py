@@ -1,0 +1,2 @@
+"""Accessibility checker agent."""
+

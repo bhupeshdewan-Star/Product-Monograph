@@ -1,0 +1,1 @@
+"""Monograph generation domain package."""

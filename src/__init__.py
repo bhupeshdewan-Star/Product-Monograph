@@ -1,0 +1,1 @@
+"""Product Monograph Champ package."""
