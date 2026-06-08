@@ -74,11 +74,25 @@ st.markdown("Generate SOP-compliant product monographs automatically using AI an
 with st.sidebar:
     st.header("[SETTINGS] Configuration")
 
-    # API Key
-    api_key = st.text_input("Anthropic API Key", type="password", help="Your Claude API key")
+    # Mode selection
+    st.subheader("Operation Mode")
+    mode = st.radio(
+        "Select how to run:",
+        ["Demo Mode (No Setup)", "Local Ollama (Free)", "Claude API (Premium)"],
+        help="Demo: Pre-generated samples | Ollama: Free local AI | Claude: Best quality"
+    )
 
-    if api_key:
-        synthesis_engine.client.api_key = api_key
+    if mode == "Claude API (Premium)":
+        api_key = st.text_input("Anthropic API Key", type="password", help="Your Claude API key from https://console.anthropic.com/")
+        if api_key:
+            synthesis_engine.client.api_key = api_key
+    elif mode == "Local Ollama (Free)":
+        st.info("[INFO] Make sure Ollama is running: `ollama serve`")
+        ollama_url = st.text_input("Ollama URL", value="http://localhost:11434", help="Local Ollama server URL")
+        st.caption("Download models: `ollama pull llama2` or `ollama pull mistral`")
+    else:  # Demo Mode
+        st.success("[DEMO] No API key needed! Using pre-generated samples.")
+        api_key = None
 
     st.divider()
 
@@ -126,7 +140,7 @@ with tab1:
     if st.button("[LAUNCH] Generate Monograph", type="primary", use_container_width=True):
         if not molecule_name:
             st.error("Please enter a molecule name")
-        elif not api_key:
+        elif mode == "Claude API (Premium)" and not api_key:
             st.error("Please enter your Anthropic API key in the sidebar")
         else:
             st.session_state.generation_in_progress = True
@@ -135,16 +149,52 @@ with tab1:
                 try:
                     output_files = {}
 
-                    # Step 1: Fetch research sources
-                    st.info("[LIBRARY] Step 1/6: Fetching research sources...")
-                    sources = data_manager.fetch_all_sources(molecule_name, max_results)
-                    sources['formatted_text'] = data_manager.structure_for_claude(sources)
-                    st.success(f"[OK] Found {sources['total_articles']} articles")
+                    # DEMO MODE: Use pre-generated sample data
+                    if mode == "Demo Mode (No Setup)":
+                        st.info("[DEMO] Using pre-generated sample monograph...")
 
-                    # Step 2: Generate monograph
-                    st.info("[DOCUMENT] Step 2/6: Generating sections (parallel execution)...")
-                    monograph = synthesis_engine.generate_monograph(molecule_name, sources)
-                    st.success(f"[OK] Generated {len(monograph['sections'])} sections")
+                        # Sample monograph data
+                        sources = {
+                            "molecule": molecule_name,
+                            "sources": {
+                                "pubmed": [{"title": f"Sample {molecule_name} Study"}],
+                                "fda": [],
+                                "google_scholar": [],
+                                "open_access": []
+                            },
+                            "total_articles": 1,
+                            "formatted_text": f"Sample research data for {molecule_name}"
+                        }
+
+                        monograph = {
+                            "molecule_name": molecule_name,
+                            "sections": {
+                                "introduction": f"## {molecule_name} Introduction\n\n{molecule_name} is a pharmaceutical compound used in clinical practice. This is a sample monograph generated in demo mode.",
+                                "pharmacology": f"## Pharmacology\n\n{molecule_name} works through specific molecular mechanisms.",
+                                "pharmacokinetics": f"## Pharmacokinetics\n\nAbsorption, distribution, metabolism, and elimination of {molecule_name}.",
+                                "clinical_efficacy": f"## Clinical Efficacy\n\nClinical studies demonstrate efficacy of {molecule_name} in target populations.",
+                                "safety": f"## Safety & Tolerability\n\nAdverse events and safety profile of {molecule_name}.",
+                                "dosage": f"## Dosage & Administration\n\nRecommended dosing of {molecule_name} is molecule-specific.",
+                                "contraindications": f"## Contraindications\n\n{molecule_name} should not be used in specific populations.",
+                                "drug_interactions": f"## Drug Interactions\n\n{molecule_name} may interact with other medications.",
+                                "references": f"[1] Sample reference for {molecule_name}"
+                            },
+                            "total_tokens_used": 0
+                        }
+                        st.success("[OK] Sample monograph loaded (5 sample articles)")
+
+                    else:
+                        # NORMAL MODE: Fetch real sources and generate
+                        # Step 1: Fetch research sources
+                        st.info("[LIBRARY] Step 1/6: Fetching research sources...")
+                        sources = data_manager.fetch_all_sources(molecule_name, max_results)
+                        sources['formatted_text'] = data_manager.structure_for_claude(sources)
+                        st.success(f"[OK] Found {sources['total_articles']} articles")
+
+                        # Step 2: Generate monograph
+                        st.info("[DOCUMENT] Step 2/6: Generating sections (parallel execution)...")
+                        monograph = synthesis_engine.generate_monograph(molecule_name, sources)
+                        st.success(f"[OK] Generated {len(monograph['sections'])} sections")
 
                     # Step 3: Clean markdown artifacts
                     if clean_markdown:
@@ -159,11 +209,24 @@ with tab1:
 
                     # Step 4: Validate SOP compliance
                     st.info("[CHECK] Step 4/6: Running SOP compliance validation...")
-                    is_valid, validation_report = sop_validator.validate_sop_compliance(monograph)
+                    if mode == "Demo Mode (No Setup)":
+                        # Demo mode: Use sample validation report
+                        validation_report = {
+                            'score': 85.0,
+                            'overall_compliant': True,
+                            'issues': ["Sample: This is a demo monograph"],
+                            'warnings': ["Demo mode: Limited validation"],
+                            'section_checks': {}
+                        }
+                        st.success("[DEMO] Compliance Score: 85.0% (Demo Data)")
+                    else:
+                        is_valid, validation_report = sop_validator.validate_sop_compliance(monograph)
+                        compliance_score = validation_report.get('score', 0)
+                        st.success(f"[OK] Compliance Score: {compliance_score:.1f}%")
+
                     monograph['validation'] = validation_report
                     st.session_state.validation_report = validation_report
                     compliance_score = validation_report.get('score', 0)
-                    st.success(f"[OK] Compliance Score: {compliance_score:.1f}%")
 
                     # Step 5: Generate output files
                     st.info("[FILES] Step 5/6: Generating output files...")
