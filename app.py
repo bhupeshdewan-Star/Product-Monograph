@@ -17,9 +17,13 @@ from document_generators import word_generator, google_docs_generator
 from sop_compliance_validator import SOPComplianceValidator
 from output_history_tracker import output_history
 from executive_summary_generator import executive_summary_generator
+from free_model_fallback import free_model_manager
 
 # Initialize validators and tools
 sop_validator = SOPComplianceValidator()
+
+# Get recommended free model
+recommended_provider, recommended_model, needs_key, explanation = free_model_manager.recommend_provider()
 
 st.set_page_config(
     page_title="Product Monograph Generator",
@@ -74,25 +78,40 @@ st.markdown("Generate SOP-compliant product monographs automatically using AI an
 with st.sidebar:
     st.header("[SETTINGS] Configuration")
 
-    # Mode selection
-    st.subheader("Operation Mode")
-    mode = st.radio(
-        "Select how to run:",
-        ["Demo Mode (No Setup)", "Local Ollama (Free)", "Claude API (Premium)"],
-        help="Demo: Pre-generated samples | Ollama: Free local AI | Claude: Best quality"
-    )
+    # Show recommended free model
+    st.subheader("AI Model Selection")
+    st.success(f"[AUTO] {explanation}")
+    st.caption(f"Priority: OpenAI → Gemini → Claude → DeepSeek → Groq")
 
-    if mode == "Claude API (Premium)":
-        api_key = st.text_input("Anthropic API Key", type="password", help="Your Claude API key from https://console.anthropic.com/")
-        if api_key:
-            synthesis_engine.client.api_key = api_key
-    elif mode == "Local Ollama (Free)":
-        st.info("[INFO] Make sure Ollama is running: `ollama serve`")
-        ollama_url = st.text_input("Ollama URL", value="http://localhost:11434", help="Local Ollama server URL")
-        st.caption("Download models: `ollama pull llama2` or `ollama pull mistral`")
-    else:  # Demo Mode
-        st.success("[DEMO] No API key needed! Using pre-generated samples.")
-        api_key = None
+    # API Key (Optional - only if user wants specific provider)
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.subheader("Optional: Add API Key")
+    with col2:
+        if st.checkbox("Use custom API?"):
+            api_provider = st.radio("Provider:", ["OpenAI", "Google", "Claude", "DeepSeek", "Groq"])
+
+            if api_provider == "OpenAI":
+                api_key = st.text_input("OpenAI API Key", type="password", help="From https://platform.openai.com/api-keys")
+            elif api_provider == "Google":
+                api_key = st.text_input("Google API Key", type="password", help="From https://makersuite.google.com/app/apikey")
+            elif api_provider == "Claude":
+                api_key = st.text_input("Claude API Key", type="password", help="From https://console.anthropic.com/")
+            elif api_provider == "DeepSeek":
+                api_key = st.text_input("DeepSeek API Key", type="password", help="From https://platform.deepseek.com/")
+            else:  # Groq
+                api_key = st.text_input("Groq API Key", type="password", help="From https://console.groq.com/")
+
+            if api_key:
+                st.caption(f"[OK] Using {api_provider} API")
+        else:
+            st.info("[FREE] Using auto-selected free model - no API key needed!")
+            api_key = None
+
+    # Demo mode option
+    st.divider()
+    st.subheader("Demo Mode")
+    demo_mode = st.checkbox("Use demo (sample) monograph?", help="Pre-generated sample for testing")
 
     st.divider()
 
@@ -140,17 +159,16 @@ with tab1:
     if st.button("[LAUNCH] Generate Monograph", type="primary", use_container_width=True):
         if not molecule_name:
             st.error("Please enter a molecule name")
-        elif mode == "Claude API (Premium)" and not api_key:
-            st.error("Please enter your Anthropic API key in the sidebar")
         else:
             st.session_state.generation_in_progress = True
 
             with st.spinner(f"Generating monograph for {molecule_name}..."):
                 try:
                     output_files = {}
+                    current_provider = recommended_provider
 
                     # DEMO MODE: Use pre-generated sample data
-                    if mode == "Demo Mode (No Setup)":
+                    if demo_mode:
                         st.info("[DEMO] Using pre-generated sample monograph...")
 
                         # Sample monograph data
@@ -182,9 +200,12 @@ with tab1:
                             "total_tokens_used": 0
                         }
                         st.success("[OK] Sample monograph loaded (5 sample articles)")
+                        st.info(f"Demo mode active. Production would use: {explanation}")
 
                     else:
                         # NORMAL MODE: Fetch real sources and generate
+                        st.info(f"[MODEL] Using: {explanation}")
+
                         # Step 1: Fetch research sources
                         st.info("[LIBRARY] Step 1/6: Fetching research sources...")
                         sources = data_manager.fetch_all_sources(molecule_name, max_results)
