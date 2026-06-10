@@ -11,7 +11,15 @@ class OpenRouterProvider(OpenAICompatibleProvider):
     def __init__(self, base_url: Optional[str] = None, timeout: float = 60.0) -> None:
         super().__init__(base_url=base_url or "https://openrouter.ai/api/v1", timeout=timeout)
 
-    def generate(self, prompt, system_prompt, model, api_key, temperature: float = 0.2) -> str:
+    def generate(
+        self,
+        prompt,
+        system_prompt,
+        model,
+        api_key,
+        temperature: float = 0.2,
+        max_completion_tokens: Optional[int] = None,
+    ) -> str:
         key = self._resolve_api_key(api_key, ["OPENROUTER_API_KEY"])
         headers = {
             "Authorization": f"Bearer {key}",
@@ -27,5 +35,5 @@ class OpenRouterProvider(OpenAICompatibleProvider):
             temperature=temperature,
             base_url=self.base_url,
             headers=headers,
+            max_completion_tokens=max_completion_tokens,
         )
-

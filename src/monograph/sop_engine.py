@@ -5,6 +5,10 @@ Ensures 100% adherence to your Standard Operating Procedures
 from typing import Dict, List, Tuple
 from config import SOP_SECTIONS, EVIDENCE_LEVELS, AE_FREQUENCY
 import json
+import re
+
+
+TRACEABILITY_MARKER_RE = re.compile(r"(PMID:\d+|FDA:[^\]\n]+|NCT\d{8,}|EMA:[^\]\n]+)")
 
 class SOPEngine:
     """Manages SOP template, validation, and compliance"""
@@ -77,6 +81,20 @@ class SOPEngine:
         if section_name in ["clinical_efficacy", "safety"]:
             validation.update(self._check_evidence_quality(content))
 
+        # Source traceability check (for evidence-backed sections)
+        if section_name in [
+            "introduction",
+            "rationale",
+            "pharmacology",
+            "pharmacokinetics",
+            "clinical_efficacy",
+            "safety",
+            "dosage",
+            "contraindications",
+            "drug_interactions",
+        ]:
+            validation.update(self._check_source_traceability(content))
+
         # Adverse event format check (for safety section)
         if section_name == "safety":
             validation.update(self._check_ae_format(content))
@@ -120,6 +138,71 @@ class SOPEngine:
             "checks": checks,
             "issues": issues
         }
+
+    def _check_source_traceability(self, content: str) -> Dict:
+        """Ensure scientific claims include evidence source markers."""
+        checks = {}
+        issues = []
+
+        scientific_sentences = 0
+        cited_sentences = 0
+        for sentence in re.split(r"(?<=[.!?])\s+", content or ""):
+            sentence = sentence.strip()
+            if not sentence or sentence.startswith("#"):
+                continue
+            if sentence.startswith("- "):
+                sentence = sentence[2:].strip()
+            if not sentence:
+                continue
+            if self._looks_scientific(sentence):
+                scientific_sentences += 1
+                if TRACEABILITY_MARKER_RE.search(sentence):
+                    cited_sentences += 1
+
+        if scientific_sentences == 0:
+            checks["source_traceability"] = True
+            return {"checks": checks, "issues": issues}
+
+        if cited_sentences < scientific_sentences:
+            issues.append("Scientific claims must include source identifiers (PMID, FDA section, or NCT).")
+            checks["source_traceability"] = False
+        else:
+            checks["source_traceability"] = True
+
+        return {
+            "checks": checks,
+            "issues": issues
+        }
+
+    @staticmethod
+    def _looks_scientific(sentence: str) -> bool:
+        lowered = sentence.lower()
+        if any(term in lowered for term in (
+            "trial",
+            "study",
+            "evidence",
+            "efficacy",
+            "safety",
+            "dose",
+            "dosage",
+            "contraindication",
+            "interaction",
+            "pharmac",
+            "fracture",
+            "glyc",
+            "pain",
+            "renal",
+            "hepatic",
+            "calcium",
+            "bioavailability",
+            "randomized",
+            "meta-analysis",
+            "confidence",
+            "adverse",
+            "monitoring",
+        )):
+            return True
+        return bool(re.search(r"\d", sentence))
 
     def _check_ae_format(self, content: str) -> Dict:
         """Check for proper adverse event frequency classification (CIOMS)"""
@@ -193,6 +276,16 @@ class SOPEngine:
                 if self.sections[section_name].get("priority") == "critical":
                     validation_report["mandatory_sections_missing"].append(section_name)
 
+        traceability_appendix = sections.get("traceability_appendix", "") or sections.get("evidence_traceability_appendix", "")
+        has_scientific_sections = any(
+            section in sections
+            for section in ("introduction", "pharmacology", "pharmacokinetics", "clinical_efficacy", "safety", "dosage", "contraindications", "drug_interactions")
+        )
+        if has_scientific_sections and not traceability_appendix.strip():
+            validation_report["critical_issues"].append("Missing evidence traceability appendix.")
+        elif traceability_appendix and "Claim | Source | Database | Retrieval date" not in traceability_appendix:
+            validation_report["critical_issues"].append("Traceability appendix is malformed or incomplete.")
+
         # Calculate overall compliance
         if section_scores:
             validation_report["overall_compliance_score"] = sum(section_scores) / len(section_scores)
@@ -207,7 +300,7 @@ class SOPEngine:
         return validation_report
 
     def get_sop_prompt_injection(self) -> str:
-        """Generate SOP constraints for Claude prompt"""
+        """Generate SOP constraints for prompt injection"""
         prompt = """
 ## YOUR SOP CONSTRAINTS (MUST FOLLOW EXACTLY):
 

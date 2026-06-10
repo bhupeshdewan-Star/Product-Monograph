@@ -24,6 +24,7 @@ class GoogleProvider(LLMProvider):
         model: str,
         api_key: Optional[str],
         temperature: float = 0.2,
+        max_completion_tokens: Optional[int] = None,
     ) -> str:
         key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not key:
@@ -51,4 +52,3 @@ class GoogleProvider(LLMProvider):
             return "".join(part.get("text", "") for part in data["candidates"][0]["content"]["parts"])
         except Exception as exc:
             raise ProviderError(f"Unexpected response format from google: {data}") from exc
-

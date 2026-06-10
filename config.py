@@ -13,8 +13,9 @@ MONOGRAPHS_DIR = DATA_DIR / "monographs"
 SKILL_FILES_DIR = DATA_DIR / "skill_files"
 FEEDBACK_DIR = DATA_DIR / "feedback"
 GENERATION_HISTORY_DIR = DATA_DIR / "generation_history"
+EVIDENCE_CACHE_DIR = DATA_DIR / "evidence_cache"
 
-for directory in [DATA_DIR, MONOGRAPHS_DIR, SKILL_FILES_DIR, FEEDBACK_DIR, GENERATION_HISTORY_DIR]:
+for directory in [DATA_DIR, MONOGRAPHS_DIR, SKILL_FILES_DIR, FEEDBACK_DIR, GENERATION_HISTORY_DIR, EVIDENCE_CACHE_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -24,13 +25,13 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
-GOOGLE_MODEL = os.getenv("GOOGLE_MODEL", "gemini-1.5-flash")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-70b-versatile")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
-LOCAL_MODEL = os.getenv("LOCAL_MODEL", "llama3.1")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "")
+GOOGLE_MODEL = os.getenv("GOOGLE_MODEL", "")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "")
+LOCAL_MODEL = os.getenv("LOCAL_MODEL", "")
 
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "2000"))
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.3"))
@@ -107,8 +108,18 @@ DEFAULT_PROVIDER = os.getenv("DEFAULT_PROVIDER", "openrouter")
 APP_NAME = os.getenv("APP_NAME", "Product Monograph Champ")
 APP_TAGLINE = os.getenv(
     "APP_TAGLINE",
-    "Product monograph generation with provider-agnostic audit agents",
+    "Provider-Agnostic AI Monograph Generator",
 )
+APP_VERSION = os.getenv("APP_VERSION", "0.1.0")
+APP_BUILD = os.getenv("APP_BUILD", "local-dev")
+APP_THEME = os.getenv("APP_THEME", "System Default")
+APP_OWNER = os.getenv("APP_OWNER", "Dr. Bhupesh Jagdevraj Dewan")
+APP_OWNER_LOCATION = os.getenv("APP_OWNER_LOCATION", "Mumbai, India")
+APP_COPYRIGHT = os.getenv(
+    "APP_COPYRIGHT",
+    f"Copyright © 2026 {APP_OWNER}. All Rights Reserved.",
+)
+APP_RELEASE_DATE = os.getenv("APP_RELEASE_DATE", "2026-06-09")
 MEDICAL_DISCLAIMER = os.getenv(
     "MEDICAL_DISCLAIMER",
     (

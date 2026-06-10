@@ -21,6 +21,7 @@ class AnthropicProvider(LLMProvider):
         model: str,
         api_key: Optional[str],
         temperature: float = 0.2,
+        max_completion_tokens: Optional[int] = None,
     ) -> str:
         key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not key:
@@ -30,7 +31,7 @@ class AnthropicProvider(LLMProvider):
 
         payload = {
             "model": model,
-            "max_tokens": 2048,
+            "max_tokens": max_completion_tokens or 2048,
             "temperature": temperature,
             "system": system_prompt,
             "messages": [{"role": "user", "content": prompt}],
@@ -55,4 +56,3 @@ class AnthropicProvider(LLMProvider):
             return "".join(part.get("text", "") for part in data["content"])
         except Exception as exc:
             raise ProviderError(f"Unexpected response format from anthropic: {data}") from exc
-
