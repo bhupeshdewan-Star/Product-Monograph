@@ -41,6 +41,33 @@ class FrontendRenderStateTest(unittest.TestCase):
 
         self.assertTrue(app._has_export_downloads(exports))
 
+    def test_clear_generation_runtime_state_resets_generation_specific_keys(self) -> None:
+        original_state = {
+            "generated_monograph": {"molecule_name": "Metformin"},
+            "generated_sources": {"summary": {"total_records": 2}},
+            "evidence_package": {"summary": {"total_records": 2}},
+            "last_generation_error": "boom",
+            "pending_generation_request": {"molecule_name": "Metformin"},
+            "resume_generation_requested": True,
+            "no_evidence_confirmation_pending": True,
+            "proceed_limited_evidence": True,
+            "evidence_refresh_requested": True,
+            "generation_stage": "generating",
+            "unrelated_key": "keep-me",
+        }
+
+        fake_st = type("FakeStreamlit", (), {"session_state": original_state})()
+        original_st = app.st
+        try:
+            app.st = fake_st
+            app._clear_generation_runtime_state()
+        finally:
+            app.st = original_st
+
+        self.assertNotIn("generated_monograph", original_state)
+        self.assertNotIn("pending_generation_request", original_state)
+        self.assertEqual(original_state["unrelated_key"], "keep-me")
+
 
 if __name__ == "__main__":
     unittest.main()

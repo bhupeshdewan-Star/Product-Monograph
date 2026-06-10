@@ -525,6 +525,22 @@ def _clear_generation_flow_state() -> None:
         st.session_state.pop(key, None)
 
 
+def _clear_generation_runtime_state() -> None:
+    for key in (
+        "generated_monograph",
+        "generated_sources",
+        "evidence_package",
+        "last_generation_error",
+        "pending_generation_request",
+        "resume_generation_requested",
+        "no_evidence_confirmation_pending",
+        "proceed_limited_evidence",
+        "evidence_refresh_requested",
+        "generation_stage",
+    ):
+        st.session_state.pop(key, None)
+
+
 def _generated_monograph_state(
     monograph: dict,
     generation_sources: dict,
@@ -1584,6 +1600,9 @@ def main() -> None:
         key="generation_mode_label",
     )
     generation_mode = MODE_LABELS[generation_mode_label]
+    if st.session_state.get("active_generation_mode") != generation_mode:
+        _clear_generation_runtime_state()
+    st.session_state["active_generation_mode"] = generation_mode
 
     molecule_name = st.sidebar.text_input(
         "Molecule name",
@@ -1808,14 +1827,31 @@ def main() -> None:
         st.subheader("Generate a product monograph")
         st.caption("Generate demo, AI, or local model drafts with live evidence retrieval and graceful fallback handling.")
 
+        reset_cols = st.columns([1, 1, 4])
+        with reset_cols[0]:
+            if st.button("Reset generation state", key="reset_generation_state_button"):
+                _clear_generation_runtime_state()
+                st.rerun()
+
+        pending_generation_request = _restore_pending_generation_request(
+            st.session_state.get("pending_generation_request")
+        )
+        if pending_generation_request:
+            st.caption("A pending generation request is queued and will resume automatically.")
+
         generation_requested = st.button("Generate monograph", type="primary", key="generate_monograph_button")
-        if st.session_state.get("resume_generation_requested"):
+        if pending_generation_request or st.session_state.get("resume_generation_requested"):
             generation_requested = True
 
         generation_allowed = True
         force_refresh = bool(st.session_state.get("evidence_refresh_requested"))
+        status_slot = st.sidebar.empty()
 
         if generation_requested:
+            st.session_state["last_generation_error"] = None
+            st.session_state["generated_monograph"] = None
+            st.session_state["generated_sources"] = None
+            st.session_state["evidence_package"] = None
             if not molecule_name:
                 st.error("Enter a molecule name.")
                 generation_allowed = False
@@ -1827,11 +1863,27 @@ def main() -> None:
             else:
                 progress_panel = st.container()
                 try:
-                    progress_panel.info("Evidence retrieved")
-                    if generation_mode == "demo":
+                    progress_panel.info("Starting generation")
+                    if pending_generation_request:
+                        st.session_state.pop("pending_generation_request", None)
+                        pending_config = pending_generation_request["generation_config"]
+                        if isinstance(pending_config, GenerationConfig):
+                            generation_config = pending_config
+                        molecule_name = pending_generation_request["molecule_name"] or molecule_name
+                        specialty = pending_generation_request["specialty"] or specialty
+                        generation_sources = pending_generation_request["generation_sources"] or {}
+                        evidence_package = pending_generation_request["evidence_package"] or {}
+                        local_result = pending_generation_request.get("local_evidence_result", {})
+                        local_summary = pending_generation_request.get("local_evidence_summary", {}) or {}
+                        source_issues = pending_generation_request.get("source_issues", []) or []
+                        evidence_dict = generation_sources
+                        status_slot.info("Resuming pending generation request.")
+                    elif generation_mode == "demo":
+                        status_slot.info("Building demo evidence package.")
                         evidence_package = sample_evidence_package(molecule_name)
                         generation_sources = sample_sources(molecule_name)
-                        st.session_state["local_evidence_summary"] = {
+                        local_result = {"count": 0}
+                        local_summary = {
                             "files_loaded": 0,
                             "file_names": [],
                             "word_count": 0,
@@ -1839,8 +1891,11 @@ def main() -> None:
                             "extraction_details": [],
                             "include_full_paths": False,
                         }
+                        source_issues = []
+                        evidence_dict = evidence_package
+                        st.session_state["local_evidence_summary"] = local_summary
                     else:
-                        progress_panel.info("Retrieving evidence")
+                        status_slot.info("Retrieving evidence")
                         evidence_package = evidence_orchestrator.retrieve_evidence(
                             molecule_name,
                             max_results=int(generation_config.max_research_articles or max_results),
@@ -1875,27 +1930,41 @@ def main() -> None:
                             for issue in source_issues:
                                 _display_evidence_issue(issue, developer_mode)
                             action_cols = st.columns(3)
+                            pending_payload = _build_pending_generation_request(
+                                molecule_name=molecule_name,
+                                specialty=specialty,
+                                generation_config=generation_config,
+                                generation_sources=evidence_dict,
+                                evidence_package=evidence_package,
+                                local_evidence_result=local_result,
+                                local_evidence_summary=local_summary,
+                                source_issues=source_issues,
+                            )
                             if total_records == 0:
                                 if action_cols[0].button("Continue without evidence", key="continue_without_evidence_inline"):
+                                    st.session_state["pending_generation_request"] = pending_payload
                                     _set_session_flag("no_evidence_confirmation_pending", True)
                                     _set_session_flag("resume_generation_requested", True)
+                                    st.session_state["generation_stage"] = "awaiting_confirmation"
                                     st.rerun()
                                 if action_cols[1].button("Cancel generation", key="cancel_generation_inline"):
-                                    _clear_generation_flow_state()
-                                    st.session_state["generated_monograph"] = None
+                                    _clear_generation_runtime_state()
                                     st.rerun()
                             else:
                                 if action_cols[0].button("Retry failed sources", key="retry_failed_sources_inline"):
+                                    st.session_state["pending_generation_request"] = pending_payload
                                     _set_session_flag("evidence_refresh_requested", True)
                                     _set_session_flag("resume_generation_requested", True)
+                                    st.session_state["generation_stage"] = "refreshing_evidence"
                                     st.rerun()
                                 if action_cols[1].button("Proceed with available evidence", key="proceed_available_evidence_inline"):
+                                    st.session_state["pending_generation_request"] = pending_payload
                                     _set_session_flag("proceed_limited_evidence", True)
                                     _set_session_flag("resume_generation_requested", True)
+                                    st.session_state["generation_stage"] = "awaiting_confirmation"
                                     st.rerun()
                                 if action_cols[2].button("Cancel generation", key="cancel_generation_partial_inline"):
-                                    _clear_generation_flow_state()
-                                    st.session_state["generated_monograph"] = None
+                                    _clear_generation_runtime_state()
                                     st.rerun()
                             generation_allowed = False
                         else:
@@ -1911,7 +1980,8 @@ def main() -> None:
                                 generation_sources = evidence_dict
 
                     if generation_allowed:
-                        progress_panel.info("Generating monograph")
+                        st.session_state["generation_stage"] = "generating"
+                        status_slot.info("Generating monograph")
                         provider_cfg = generation_config.to_provider_config()
                         monograph = synthesis_engine.generate_monograph(
                             molecule_name,
@@ -1919,7 +1989,8 @@ def main() -> None:
                             provider_cfg,
                         )
                         st.session_state.update(_generated_monograph_state(monograph, generation_sources, evidence_package))
-                        progress_panel.info("Rendering output")
+                        st.session_state["generation_stage"] = "rendering"
+                        status_slot.info("Rendering output")
 
                         try:
                             monograph["executive_summary"] = executive_summary_generator.generate_executive_summary(
@@ -1953,13 +2024,17 @@ def main() -> None:
                             monograph["history_id"] = history_id
 
                             st.session_state.update(_generated_monograph_state(monograph, generation_sources, evidence_package))
-                            progress_panel.success("Preparing exports")
+                            st.session_state["generation_stage"] = "exports"
+                            status_slot.success("Preparing exports")
                             st.success("Monograph generated.")
                         except Exception as post_exc:
                             st.session_state["last_generation_error"] = str(post_exc)
                             st.session_state["generated_monograph"] = monograph
                             st.session_state["generated_sources"] = generation_sources
-                            st.session_state["evidence_package"] = evidence_package.model_dump()
+                            if hasattr(evidence_package, "model_dump"):
+                                st.session_state["evidence_package"] = evidence_package.model_dump()
+                            else:
+                                st.session_state["evidence_package"] = evidence_package or {}
                             _report_exception("Generation finalization failed", post_exc, developer_mode, severity="warning")
                         _clear_generation_flow_state()
 
