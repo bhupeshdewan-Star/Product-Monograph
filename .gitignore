@@ -28,3 +28,5 @@ tests/__pycache__/
 *.log
 *.out
 *.err
+reports/*.txt
+reports/*.png
