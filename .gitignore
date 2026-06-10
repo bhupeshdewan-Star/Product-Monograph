@@ -17,6 +17,7 @@ temp/
 data/monographs/
 data/feedback/
 data/generation_history/
+data/evidence_cache/
 src/agents/auditor/saved_schemas/*.json
 src/agents/*/__pycache__/
 src/agents/*/*/__pycache__/
