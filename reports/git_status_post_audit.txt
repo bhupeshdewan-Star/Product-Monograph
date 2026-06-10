@@ -1,0 +1,106 @@
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   .gitignore
+	modified:   README.md
+	modified:   app.py
+	modified:   config.py
+	modified:   src/agents/providers/anthropic_provider.py
+	modified:   src/agents/providers/base.py
+	modified:   src/agents/providers/deepseek_provider.py
+	modified:   src/agents/providers/google_provider.py
+	modified:   src/agents/providers/groq_provider.py
+	modified:   src/agents/providers/openai_provider.py
+	modified:   src/agents/providers/openrouter_provider.py
+	modified:   src/monograph/executive_summary.py
+	modified:   src/monograph/generator.py
+	modified:   src/monograph/prompts.py
+	modified:   src/monograph/provider_selector.py
+	modified:   src/monograph/sop_engine.py
+	modified:   src/services/data_sources.py
+	modified:   src/services/document_generators.py
+	modified:   src/services/export_service.py
+	modified:   src/services/pdf_generator.py
+	modified:   tests/test_monograph_generator.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	advanced_web_scraper.py
+	ai_provider_manager.py
+	audit_api_client.py
+	audit_api_fastapi.py
+	audit_api_flask.py
+	audit_cli.py
+	audit_examples.py
+	auditor_agent_builder.py
+	auditor_config_template.py
+	cost_analytics.py
+	data_sources.py
+	data_sources_enhanced.py
+	docs/
+	document_generators.py
+	examples_a11y_usage.py
+	executive_summary_generator.py
+	free_ai_priority_manager.py
+	free_model_fallback.py
+	global_a11y_checker.py
+	global_audit_api.py
+	global_auditor_builder.py
+	indian_market_context.py
+	literature_review_generator.py
+	markdown_cleaner.py
+	output_history_tracker.py
+	pdf_generator.py
+	pdf_table_formatter.py
+	reports/8516_smoke.png
+	reports/blank_screen_8515.png
+	reports/code_map.txt
+	reports/duplicate_candidates.txt
+	reports/duplicate_usage_check.txt
+	reports/evidence_hits.txt
+	reports/export_hits.txt
+	reports/final_hardening_git_status_before.txt
+	reports/final_release_candidate_report.md
+	reports/git_status_post_audit.txt
+	reports/provider_hits.txt
+	reports/repo_inventory.txt
+	reports/ui_controls.txt
+	reports/ui_controls_full.txt
+	reports/validation_hits.txt
+	sop_compliance_validator.py
+	sop_engine.py
+	src/agents/a11y/rendered.py
+	src/monograph/fallback_content.py
+	src/monograph/generation_config.py
+	src/monograph/model_discovery.py
+	src/services/evidence_retrieval/
+	src/services/render_helpers.py
+	subagent_orchestrator.py
+	test_a11y_checker.py
+	test_api.py
+	test_auditor.py
+	test_claude.py
+	test_global_audit_api.py
+	tests/fixtures/
+	tests/test_ai_mode_failures.py
+	tests/test_app_import.py
+	tests/test_app_smoke.py
+	tests/test_discovery_warning.py
+	tests/test_evidence_retrieval.py
+	tests/test_evidence_ui.py
+	tests/test_exports.py
+	tests/test_fallback_quality.py
+	tests/test_generation_config.py
+	tests/test_local_compact_prompt.py
+	tests/test_local_diagnostics.py
+	tests/test_local_fast_draft.py
+	tests/test_local_vault.py
+	tests/test_model_discovery.py
+	tests/test_provider_timeout.py
+	tests/test_rendered_a11y.py
+	tests/test_traceability.py
+	validator.py
+	vancouver_reference_formatter.py
+
+no changes added to commit (use "git add" and/or "git commit -a")

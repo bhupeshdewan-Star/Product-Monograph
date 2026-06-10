@@ -1,0 +1,22 @@
+ .gitignore                                  |    1 +
+ README.md                                   |   45 +-
+ app.py                                      | 2158 ++++++++++++++++++++++++---
+ config.py                                   |   29 +-
+ src/agents/providers/anthropic_provider.py  |    4 +-
+ src/agents/providers/base.py                |   78 +-
+ src/agents/providers/deepseek_provider.py   |   12 +-
+ src/agents/providers/google_provider.py     |    2 +-
+ src/agents/providers/groq_provider.py       |   12 +-
+ src/agents/providers/openai_provider.py     |    9 +-
+ src/agents/providers/openrouter_provider.py |   12 +-
+ src/monograph/executive_summary.py          |   59 +-
+ src/monograph/generator.py                  |  254 ++--
+ src/monograph/prompts.py                    |  150 +-
+ src/monograph/provider_selector.py          |  181 +--
+ src/monograph/sop_engine.py                 |   95 +-
+ src/services/data_sources.py                |   10 +-
+ src/services/document_generators.py         |  339 ++---
+ src/services/export_service.py              |  341 +++++
+ src/services/pdf_generator.py               |  596 +++++---
+ tests/test_monograph_generator.py           |   70 +-
+ 21 files changed, 3479 insertions(+), 978 deletions(-)
