@@ -1,7 +1,7 @@
 """
 Free AI Priority Manager
 Automatically selects AI provider based on free tier availability
-Priority: Ollama > Groq > Together.ai > OpenAI > Anthropic Free > Anthropic Paid
+Priority: Local LM Studio-compatible server > Groq > Together.ai > OpenAI > Anthropic Free > Anthropic Paid
 """
 import os
 from typing import Dict, Tuple
@@ -84,15 +84,15 @@ class FreeAIPriorityManager:
 
     def _check_ollama(self) -> Tuple[bool, Dict]:
         """
-        Check Ollama availability (Local, 100% Free)
+        Check local OpenAI-compatible server availability (100% Free)
         """
         try:
-            ollama_url = os.getenv('OLLAMA_URL', 'http://localhost:11434')
-            response = requests.get(f"{ollama_url}/api/tags", timeout=2)
+            ollama_url = os.getenv('LMSTUDIO_URL', os.getenv('OLLAMA_URL', 'http://localhost:1234'))
+            response = requests.get(f"{ollama_url}/v1/models", timeout=2)
 
             if response.status_code == 200:
-                model = os.getenv('OLLAMA_MODEL', 'llama2')
-                print(f"[OK] OLLAMA: Running locally (Free, Unlimited)")
+                model = os.getenv('LOCAL_MODEL', os.getenv('OLLAMA_MODEL', 'phi-3.1-mini-4k-instruct'))
+                print(f"[OK] LOCAL: Running locally (Free, Unlimited)")
                 return True, {
                     'provider': 'ollama',
                     'model': model,
@@ -102,9 +102,9 @@ class FreeAIPriorityManager:
                     'quota_status': 'Unlimited'
                 }
         except requests.exceptions.ConnectionError:
-            print("[ERROR] Ollama: Not running (Start with: ollama serve)")
+            print("[ERROR] Local model server: Not running (Start LM Studio and enable the local server)")
         except Exception as e:
-            print(f"[ERROR] Ollama: {str(e)}")
+            print(f"[ERROR] Local model server: {str(e)}")
 
         return False, {}
 
@@ -276,8 +276,8 @@ class FreeAIPriorityManager:
         configs = {
             'ollama': {
                 'provider': 'ollama',
-                'model': os.getenv('OLLAMA_MODEL', 'llama2'),
-                'url': os.getenv('OLLAMA_URL', 'http://localhost:11434'),
+                'model': os.getenv('LOCAL_MODEL', os.getenv('OLLAMA_MODEL', 'phi-3.1-mini-4k-instruct')),
+                'url': os.getenv('LMSTUDIO_URL', os.getenv('OLLAMA_URL', 'http://localhost:1234')),
                 'cost': 0
             },
             'groq': {

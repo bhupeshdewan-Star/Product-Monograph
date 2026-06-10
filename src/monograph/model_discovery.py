@@ -102,7 +102,7 @@ class ModelDiscoveryService:
                 endpoints=("/models",),
             )
         if provider == "openai-compatible local":
-            return self._discover_local(base_url=base_url or "http://localhost:11434/v1")
+            return self._discover_local(base_url=base_url or "http://localhost:1234/v1")
         return ModelDiscoveryResult(
             provider=provider,
             source="manual",
@@ -138,7 +138,7 @@ class ModelDiscoveryService:
                     warning = f"Model discovery request failed with {response.status_code}."
                     continue
                 data = response.json()
-                models = self._extract_openai_like_models(data)
+                models = sorted(self._extract_openai_like_models(data))
                 if models:
                     return ModelDiscoveryResult(
                         provider=provider,
@@ -256,7 +256,9 @@ class ModelDiscoveryService:
             try:
                 response = requests.get(f"{base_url.rstrip('/')}{suffix}", timeout=5)
                 if response.status_code < 400:
-                    models = self._extract_openai_like_models(response.json())
+                    models = self._prioritize_local_models(
+                        self._extract_openai_like_models(response.json())
+                    )
                     if models:
                         return ModelDiscoveryResult(
                             provider="openai-compatible local",
@@ -289,7 +291,23 @@ class ModelDiscoveryService:
             model_id = item.get("id") or item.get("name")
             if model_id:
                 models.append(str(model_id).replace("models/", ""))
-        return sorted(dict.fromkeys(models))
+        return list(dict.fromkeys(models))
+
+    @staticmethod
+    def _prioritize_local_models(models: list[str]) -> list[str]:
+        def sort_key(model_id: str) -> tuple[int, str]:
+            lowered = model_id.lower()
+            if "embed" in lowered or "embedding" in lowered:
+                priority = 3
+            elif "phi" in lowered or "mini" in lowered:
+                priority = 0
+            elif "instruct" in lowered or "chat" in lowered:
+                priority = 1
+            else:
+                priority = 2
+            return priority, lowered
+
+        return sorted(models, key=sort_key)
 
     @staticmethod
     def _cache_key(provider: str, base_url: Optional[str]) -> str:

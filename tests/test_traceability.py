@@ -24,10 +24,10 @@ class TraceabilityTest(unittest.TestCase):
             base_url="http://localhost:11434/v1",
         )
 
-        self.assertEqual(cfg.max_completion_tokens, 1500)
+        self.assertEqual(cfg.max_completion_tokens, 256)
         provider_cfg = cfg.to_provider_config()
         self.assertIsNotNone(provider_cfg)
-        self.assertEqual(provider_cfg.max_completion_tokens, 1500)
+        self.assertEqual(provider_cfg.max_completion_tokens, 256)
 
     def test_openai_local_payload_includes_completion_tokens(self) -> None:
         response = Mock()
@@ -42,12 +42,12 @@ class TraceabilityTest(unittest.TestCase):
                 model="gemma4:e4b-it-qat",
                 api_key=None,
                 temperature=0.2,
-                max_completion_tokens=1500,
+                max_completion_tokens=256,
             )
 
         payload = mock_post.call_args.kwargs["json"]
-        self.assertEqual(payload["max_tokens"], 1500)
-        self.assertEqual(payload["max_completion_tokens"], 1500)
+        self.assertEqual(payload["max_tokens"], 256)
+        self.assertEqual(payload["max_completion_tokens"], 256)
 
     def test_validation_fails_when_scientific_claim_lacks_source(self) -> None:
         content = (

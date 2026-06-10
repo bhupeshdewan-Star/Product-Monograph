@@ -50,6 +50,27 @@ class ModelDiscoveryTest(unittest.TestCase):
         self.assertEqual(result.models, ["llama3.1"])
         self.assertEqual(mock_get.call_count, 2)
 
+    def test_local_discovery_prioritizes_chat_models_over_embeddings(self) -> None:
+        response = Mock()
+        response.status_code = 200
+        response.json.return_value = {
+            "data": [
+                {"id": "text-embedding-nomic-embed-text-v1.5"},
+                {"id": "google/gemma-4-e4b"},
+                {"id": "phi-3.1-mini-4k-instruct"},
+            ]
+        }
+
+        with patch("src.monograph.model_discovery.requests.get", return_value=response):
+            result = model_discovery_service.discover_models(
+                provider="openai-compatible local",
+                base_url="http://localhost:1234/v1",
+                force_refresh=True,
+            )
+
+        self.assertEqual(result.models[0], "phi-3.1-mini-4k-instruct")
+        self.assertEqual(result.models[-1], "text-embedding-nomic-embed-text-v1.5")
+
     def test_cached_discovery_is_reused(self) -> None:
         response = Mock()
         response.status_code = 200

@@ -4,6 +4,7 @@ import logging
 import os
 from importlib.util import find_spec
 from pathlib import Path
+from urllib.parse import urlparse
 from types import SimpleNamespace
 from typing import Any, Optional
 
@@ -86,6 +87,22 @@ def run_rendered_accessibility_review(
     *,
     html: str | None = None,
 ) -> dict[str, Any]:
+    normalized_url = (url or "").strip()
+    if html is None and not normalized_url:
+        return {
+            "success": False,
+            "audit_type": "rendered-accessibility",
+            "url": url,
+            "playwright_available": playwright_available(),
+            "axe_available": False,
+            "summary": "Rendered accessibility review requires a non-empty URL or inline HTML.",
+            "issues": [],
+            "recommendations": [],
+            "coverage_notes": [
+                "Provide a target URL or inline HTML before running the rendered accessibility review.",
+            ],
+        }
+
     if not playwright_available():
         return {
             "success": False,
@@ -102,6 +119,23 @@ def run_rendered_accessibility_review(
             ],
         }
 
+    if html is None:
+        parsed = urlparse(normalized_url)
+        if not normalized_url or parsed.scheme not in {"http", "https"}:
+            return {
+                "success": False,
+                "audit_type": "rendered-accessibility",
+                "url": url,
+                "playwright_available": True,
+                "axe_available": False,
+                "summary": "Rendered accessibility review requires an http(s) URL or inline HTML.",
+                "issues": [],
+                "recommendations": [],
+                "coverage_notes": [
+                    "Provide a valid http(s) URL or pass inline HTML before running the rendered accessibility review.",
+                ],
+            }
+
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
@@ -110,9 +144,9 @@ def run_rendered_accessibility_review(
         try:
             if html is not None:
                 page.set_content(html, wait_until="load")
-                final_url = url or "inline://rendered"
+                final_url = normalized_url or "inline://rendered"
             else:
-                page.goto(url, wait_until="networkidle", timeout=60000)
+                page.goto(normalized_url, wait_until="networkidle", timeout=60000)
                 final_url = page.url
             rendered_html = page.content()
             rendered_tree = None

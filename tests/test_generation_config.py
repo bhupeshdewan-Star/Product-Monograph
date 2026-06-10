@@ -125,7 +125,7 @@ class GenerationConfigTest(unittest.TestCase):
         self.assertIsNotNone(provider_cfg)
         self.assertEqual(provider_cfg.provider, "openai")
         self.assertEqual(provider_cfg.base_url, "http://localhost:11434/v1")
-        self.assertTrue(provider_cfg.strict)
+        self.assertFalse(provider_cfg.strict)
 
 
 if __name__ == "__main__":

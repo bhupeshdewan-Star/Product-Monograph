@@ -57,13 +57,15 @@ class OpenAICompatibleProvider(LLMProvider):
         hostname = (urlparse(url).hostname or "").lower()
         return hostname in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
 
-    def _request_timeout(self, url: str) -> float:
+    def _request_timeout(self, url: str, max_completion_tokens: int | None = None) -> float:
         if self._is_loopback_url(url):
-            return max(self.timeout, 300.0)
+            if max_completion_tokens is not None and max_completion_tokens <= 10:
+                return max(self.timeout, 30.0)
+            return max(self.timeout, 20.0)
         return self.timeout
 
     def _post_json(self, url: str, headers: dict, payload: dict, timeout: float | None = None) -> dict:
-        timeout_value = timeout or self._request_timeout(url)
+        timeout_value = timeout or self._request_timeout(url, payload.get("max_completion_tokens"))
         self.last_request_diagnostics = {
             "provider_name": self.provider_name,
             "request_url": url,
@@ -140,7 +142,12 @@ class OpenAICompatibleProvider(LLMProvider):
             payload["max_tokens"] = max_completion_tokens
             payload["max_completion_tokens"] = max_completion_tokens
         request_url = f"{base_url.rstrip('/')}/chat/completions"
-        data = self._post_json(request_url, headers, payload, timeout=self._request_timeout(request_url))
+        data = self._post_json(
+            request_url,
+            headers,
+            payload,
+            timeout=self._request_timeout(request_url, max_completion_tokens),
+        )
         self.last_request_diagnostics.update(
             {
                 "model": model,

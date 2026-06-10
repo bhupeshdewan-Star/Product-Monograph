@@ -35,7 +35,7 @@ class LocalDiagnosticsTests(unittest.TestCase):
         self.assertEqual(diagnostics["provider_name"], "openai-compatible local")
         self.assertTrue(diagnostics["request_sent"])
         self.assertTrue(diagnostics["response_received"])
-        self.assertEqual(diagnostics["timeout_seconds"], 300.0)
+        self.assertEqual(diagnostics["timeout_seconds"], 60.0)
         self.assertEqual(diagnostics["payload"]["model"], "gemma4:e4b")
         self.assertEqual(diagnostics["payload"]["max_tokens"], 120)
         self.assertEqual(diagnostics["payload"]["max_completion_tokens"], 120)

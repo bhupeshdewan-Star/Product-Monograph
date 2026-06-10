@@ -77,7 +77,7 @@ class GenerationConfig(BaseModel):
     temperature: float = 0.3
     local_compact_prompt_mode: bool = False
     local_section_generation_mode: bool = False
-    local_compact_evidence_chars: int = 6000
+    local_compact_evidence_chars: int = 3000
     local_safe_prompt_tokens: int = 2400
     demo_mode: bool = False
     blocked: bool = False
@@ -100,7 +100,7 @@ class GenerationConfig(BaseModel):
             temperature=self.temperature,
             base_url=self.base_url,
             max_completion_tokens=self.max_completion_tokens,
-            strict=self.mode in {"ai", "local"},
+            strict=self.mode == "ai",
         )
 
 
@@ -142,7 +142,7 @@ def resolve_generation_config(
         )
 
     if normalized_mode == "local":
-        local_base_url = base_url.strip() or "http://localhost:11434/v1"
+        local_base_url = base_url.strip() or os.getenv("LMSTUDIO_URL", "http://localhost:1234/v1")
         local_model = model.strip()
         if not _looks_like_local_base_url(local_base_url):
             notes.append(
@@ -159,12 +159,12 @@ def resolve_generation_config(
                 api_key=None,
                 api_key_source="none",
                 base_url=local_base_url,
-                max_completion_tokens=1500,
+                max_completion_tokens=256,
                 max_research_articles=max_research_articles,
                 temperature=temperature,
                 local_compact_prompt_mode=True,
                 local_section_generation_mode=True,
-                local_compact_evidence_chars=6000,
+                local_compact_evidence_chars=3000,
                 local_safe_prompt_tokens=2400,
                 demo_mode=False,
                 blocked=True,
@@ -182,12 +182,12 @@ def resolve_generation_config(
             api_key=None,
             api_key_source="none",
             base_url=local_base_url,
-            max_completion_tokens=1500,
+            max_completion_tokens=256,
             max_research_articles=max_research_articles,
             temperature=temperature,
             local_compact_prompt_mode=True,
             local_section_generation_mode=True,
-            local_compact_evidence_chars=6000,
+            local_compact_evidence_chars=3000,
             local_safe_prompt_tokens=2400,
             demo_mode=False,
             blocked=False,

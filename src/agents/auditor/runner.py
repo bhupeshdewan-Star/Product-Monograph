@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 from typing import Optional
 
 from ..providers.base import ProviderConfig, ProviderError
@@ -12,6 +13,21 @@ from .schema_store import load_schema
 from .schemas import AuditCriterion
 
 logger = logging.getLogger(__name__)
+
+
+FALLBACK_TARGET_HTML = """
+<html>
+  <head>
+    <title>Fallback Audit Target</title>
+  </head>
+  <body>
+    <main>
+      <h1>Fallback Audit Target</h1>
+      <p>The requested page could not be fetched, so the audit ran against a local fallback target.</p>
+    </main>
+  </body>
+</html>
+"""
 
 
 def _keyword_match(snapshot: dict, criterion: AuditCriterion) -> tuple[bool, list[str]]:
@@ -145,7 +161,16 @@ def run_audit(
     fetcher=fetch_url,
 ) -> dict:
     schema = load_schema(audit_schema_id)
-    page = fetcher(target_url)
+    target_fetch_warning = None
+    try:
+        page = fetcher(target_url)
+    except Exception as exc:
+        target_fetch_warning = str(exc)
+        logger.warning("Audit target fetch failed, using local fallback: %s", exc)
+        page = SimpleNamespace(
+            html=FALLBACK_TARGET_HTML,
+            final_url="inline://audit-target",
+        )
     snapshot = parse_page_snapshot(page.html, page.final_url)
     heuristics = _evaluate_schema_heuristically(snapshot, schema.model_dump(mode="json"))
 
@@ -155,6 +180,8 @@ def run_audit(
     coverage_notes = [
         "Generic schema evaluation relies on keywords and page snapshot structure when no LLM is available.",
     ]
+    if target_fetch_warning:
+        coverage_notes.append(f"Target fetch failed and the audit ran against fallback HTML: {target_fetch_warning}")
     provider_used = None
     model_used = None
 
@@ -200,5 +227,6 @@ def run_audit(
         "provider_used": provider_used,
         "model_used": model_used,
         "schema": schema.model_dump(mode="json"),
+        "target_fetch_warning": target_fetch_warning,
     }
 

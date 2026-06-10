@@ -64,6 +64,41 @@ class AuditorBuilderTest(unittest.TestCase):
         self.assertIn("issues", audit_result)
         self.assertIn("summary", audit_result)
 
+    def test_run_audit_uses_fallback_when_target_fetch_fails(self) -> None:
+        checklist_html = """
+        <html>
+          <head><title>Landing Page Audit Checklist</title></head>
+          <body>
+            <main>
+              <h1>Landing Page Audit Checklist</h1>
+              <ul>
+                <li>Ensure alt text exists for images</li>
+                <li>Use a clear heading hierarchy</li>
+              </ul>
+            </main>
+          </body>
+        </html>
+        """
+
+        schema_result = build_audit_schema(
+            "https://example.com/checklist",
+            fetcher=lambda _: SimpleNamespace(html=checklist_html, final_url="https://example.com/checklist"),
+        )
+
+        def failing_fetch(_):
+            raise ConnectionError("HTTPSConnectionPool(host='istapage.com') NameResolutionError")
+
+        audit_result = run_audit(
+            "https://istapage.com/blog/landing-page-audit-checklist",
+            schema_result["schema_id"],
+            fetcher=failing_fetch,
+        )
+
+        self.assertTrue(audit_result["success"])
+        self.assertEqual(audit_result["target_url"], "https://istapage.com/blog/landing-page-audit-checklist")
+        self.assertTrue(audit_result.get("target_fetch_warning"))
+        self.assertIn("fallback HTML", " ".join(audit_result.get("coverage_notes", [])))
+
 
 if __name__ == "__main__":
     unittest.main()

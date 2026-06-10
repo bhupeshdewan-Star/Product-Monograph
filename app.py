@@ -57,6 +57,7 @@ AI_PROVIDER_LABELS = {
 
 AUDIT_PROVIDER_OPTIONS = ["none", "openai", "anthropic", "google", "deepseek", "groq", "openrouter"]
 LOCAL_PROVIDER_KEY = "openai-compatible local"
+LOCAL_MODEL_BASE_URL = os.getenv("LMSTUDIO_URL", "http://localhost:1234/v1")
 WRITING_STYLE_PRESETS = {
     "Regulatory Writing": 0.10,
     "Medical Affairs": 0.20,
@@ -524,6 +525,36 @@ def _clear_generation_flow_state() -> None:
         st.session_state.pop(key, None)
 
 
+def _generated_monograph_state(
+    monograph: dict,
+    generation_sources: dict,
+    evidence_package,
+) -> dict:
+    if hasattr(evidence_package, "model_dump"):
+        evidence_payload = evidence_package.model_dump()
+    else:
+        evidence_payload = evidence_package or {}
+    return {
+        "generated_monograph": monograph,
+        "generated_sources": generation_sources,
+        "evidence_package": evidence_payload,
+        "last_generation_error": None,
+    }
+
+
+def _has_renderable_monograph(monograph: dict | None) -> bool:
+    return bool(monograph and monograph.get("molecule_name") and monograph.get("sections"))
+
+
+def _has_export_downloads(exports: dict | None) -> bool:
+    if not exports:
+        return False
+    for key in ("json", "markdown", "pdf", "word", "xlsx", "print_ready", "google_docs"):
+        if exports.get(key):
+            return True
+    return False
+
+
 def _local_evidence_summary(local_package: dict | None) -> dict:
     if not local_package:
         return {
@@ -838,7 +869,7 @@ def _render_provider_mode_controls(mode: str, prefix: str, developer_mode: bool 
         )
         base_url = st.sidebar.text_input(
             "Base URL",
-            value="http://localhost:11434/v1",
+            value=LOCAL_MODEL_BASE_URL,
             key=_base_url_key(prefix),
             help="OpenAI-compatible local endpoint or proxy URL.",
         )
@@ -869,7 +900,7 @@ def _render_provider_mode_controls(mode: str, prefix: str, developer_mode: bool 
             "Compact evidence characters",
             2000,
             10000,
-            6000,
+            3000,
             step=250,
             key=f"{prefix}_local_compact_evidence_chars",
             help="Caps the amount of evidence text sent to the local model.",
@@ -890,7 +921,7 @@ def _render_provider_mode_controls(mode: str, prefix: str, developer_mode: bool 
         )
         if not discovery["selected_model"] and discovery.get("warning") is None:
             discovery["warning"] = "No local models were returned. Enter a model manually."
-        warm_up_clicked = st.sidebar.button("Warm up Ollama", key=f"{prefix}_warm_up_ollama")
+        warm_up_clicked = st.sidebar.button("Warm up Local Model", key=f"{prefix}_warm_up_ollama")
         prompt_estimate = _estimate_local_prompt_tokens(
             st.session_state.get("molecule_name_input", st.session_state.get("molecule_name", "")),
             st.session_state.get("local_evidence_summary"),
@@ -925,9 +956,9 @@ def _render_provider_mode_controls(mode: str, prefix: str, developer_mode: bool 
                     warmup_result = _warm_up_local_model(provider_cfg, discovery["selected_model"])
                     st.session_state["local_model_warmup"] = warmup_result
                     if warmup_result.get("ok"):
-                        st.sidebar.success(f"Ollama warm-up complete: {warmup_result.get('response', 'ready')}")
+                        st.sidebar.success(f"Local model warm-up complete: {warmup_result.get('response', 'ready')}")
                     else:
-                        st.sidebar.warning(f"Ollama returned: {warmup_result.get('response', '') or 'unexpected response'}")
+                        st.sidebar.warning(f"Local model returned: {warmup_result.get('response', '') or 'unexpected response'}")
                 except Exception as exc:
                     st.session_state["local_model_warmup"] = {"ok": False, "error": str(exc)}
                     if developer_mode:
@@ -1632,8 +1663,9 @@ def main() -> None:
     if generation_mode == "local":
         generation_config.local_compact_prompt_mode = bool(provider_controls.get("local_compact_prompt_mode", True))
         generation_config.local_section_generation_mode = bool(provider_controls.get("local_section_generation_mode", True))
-        generation_config.local_compact_evidence_chars = int(provider_controls.get("local_compact_evidence_chars", 6000) or 6000)
+        generation_config.local_compact_evidence_chars = int(provider_controls.get("local_compact_evidence_chars", 3000) or 3000)
         generation_config.max_research_articles = int(provider_controls.get("fast_local_evidence_cap", max_results) or max_results)
+        generation_config.max_completion_tokens = 128 if bool(provider_controls.get("fast_local_draft", True)) else 192
     generation_config.max_research_articles = min(generation_config.max_research_articles, max_results)
 
     if generation_config.notes and developer_mode:
@@ -1646,7 +1678,7 @@ def main() -> None:
         molecule_name,
         st.session_state.get("local_evidence_summary"),
         bool(getattr(generation_config, "local_compact_prompt_mode", False)),
-        int(getattr(generation_config, "local_compact_evidence_chars", 6000) or 6000),
+        int(getattr(generation_config, "local_compact_evidence_chars", 3000) or 3000),
         int(provider_controls.get("fast_local_evidence_cap", 5) or 5),
         bool(getattr(generation_config, "local_section_generation_mode", False)),
     )
@@ -1760,6 +1792,7 @@ def main() -> None:
             with st.expander("Executive summary", expanded=False):
                 st.markdown(monograph["executive_summary"])
 
+        st.info("Preparing exports")
         try:
             exports = export_service.export_bundle(monograph)
         except Exception as exc:
@@ -1767,6 +1800,8 @@ def main() -> None:
             _report_exception("Export bundle failed", exc, developer_mode, severity="warning")
 
         st.markdown(_section_title("Export Options", "#0f766e", "??"), unsafe_allow_html=True)
+        if not _has_export_downloads(exports):
+            st.warning("No export files were prepared.")
         _render_export_buttons(monograph, exports)
 
     with tab_generate:
@@ -1790,7 +1825,9 @@ def main() -> None:
                     st.caption("; ".join(generation_config.notes))
                 generation_allowed = False
             else:
+                progress_panel = st.container()
                 try:
+                    progress_panel.info("Evidence retrieved")
                     if generation_mode == "demo":
                         evidence_package = sample_evidence_package(molecule_name)
                         generation_sources = sample_sources(molecule_name)
@@ -1803,6 +1840,7 @@ def main() -> None:
                             "include_full_paths": False,
                         }
                     else:
+                        progress_panel.info("Retrieving evidence")
                         evidence_package = evidence_orchestrator.retrieve_evidence(
                             molecule_name,
                             max_results=int(generation_config.max_research_articles or max_results),
@@ -1865,19 +1903,25 @@ def main() -> None:
                                 generation_sources = _prepare_local_compact_sources(
                                     evidence_dict,
                                     compact_prompt_mode=bool(getattr(generation_config, "local_compact_prompt_mode", False)),
-                                    compact_evidence_chars=int(getattr(generation_config, "local_compact_evidence_chars", 6000) or 6000),
+                                    compact_evidence_chars=int(getattr(generation_config, "local_compact_evidence_chars", 3000) or 3000),
                                     compact_records=int(provider_controls.get("fast_local_evidence_cap", max_results) or max_results),
                                     section_generation_mode=bool(getattr(generation_config, "local_section_generation_mode", False)),
                                 )
                             else:
                                 generation_sources = evidence_dict
 
-                            provider_cfg = generation_config.to_provider_config()
-                            monograph = synthesis_engine.generate_monograph(
-                                molecule_name,
-                                generation_sources,
-                                provider_cfg,
-                            )
+                    if generation_allowed:
+                        progress_panel.info("Generating monograph")
+                        provider_cfg = generation_config.to_provider_config()
+                        monograph = synthesis_engine.generate_monograph(
+                            molecule_name,
+                            generation_sources,
+                            provider_cfg,
+                        )
+                        st.session_state.update(_generated_monograph_state(monograph, generation_sources, evidence_package))
+                        progress_panel.info("Rendering output")
+
+                        try:
                             monograph["executive_summary"] = executive_summary_generator.generate_executive_summary(
                                 molecule_name,
                                 generation_sources,
@@ -1908,17 +1952,22 @@ def main() -> None:
                             history_id = output_history.log_generation(monograph)
                             monograph["history_id"] = history_id
 
+                            st.session_state.update(_generated_monograph_state(monograph, generation_sources, evidence_package))
+                            progress_panel.success("Preparing exports")
+                            st.success("Monograph generated.")
+                        except Exception as post_exc:
+                            st.session_state["last_generation_error"] = str(post_exc)
                             st.session_state["generated_monograph"] = monograph
                             st.session_state["generated_sources"] = generation_sources
                             st.session_state["evidence_package"] = evidence_package.model_dump()
-                            st.session_state["last_generation_error"] = None
-                            _clear_generation_flow_state()
-                            st.success("Monograph generated.")
+                            _report_exception("Generation finalization failed", post_exc, developer_mode, severity="warning")
+                        _clear_generation_flow_state()
 
                 except Exception as exc:
                     st.session_state["last_generation_error"] = str(exc)
-                    st.session_state["generated_monograph"] = None
-                    st.session_state["generated_sources"] = None
+                    if not st.session_state.get("generated_monograph"):
+                        st.session_state["generated_monograph"] = None
+                        st.session_state["generated_sources"] = None
                     st.session_state["resume_generation_requested"] = False
                     st.session_state["no_evidence_confirmation_pending"] = False
                     _report_exception("Generation failed", exc, developer_mode)
@@ -1932,12 +1981,14 @@ def main() -> None:
                 st.error("Last generation encountered an error. Open Developer Mode for details.")
 
         monograph = st.session_state.get("generated_monograph")
-        if monograph:
+        if _has_renderable_monograph(monograph):
             _render_monograph(monograph)
         elif generation_mode == "demo" and not generation_requested:
             st.info("Demo Mode is ready. Click Generate monograph to build a sample draft.")
 
     audit_provider_cfg = generation_config.to_provider_config()
+    if generation_mode == "local" and audit_provider_cfg:
+        audit_provider_cfg.timeout = 15.0 if bool(provider_controls.get("fast_local_draft", True)) else 30.0
 
     with tab_audit:
         st.subheader("Universal audit agents")
@@ -2007,20 +2058,24 @@ def main() -> None:
         st.markdown("### Rendered accessibility review")
         st.caption("Playwright-rendered review with Axe-core support when available. Works for URLs and inline HTML.")
         rendered_target = target_url.strip()
-        if audit_mode == "HTML" and target_html.strip():
+        rendered_inline_html = audit_mode == "HTML" and bool(target_html.strip())
+        if rendered_inline_html:
             rendered_target = "inline://rendered"
         if st.button("Run rendered accessibility review", key="audit_rendered_a11y"):
             try:
-                rendered_result = run_rendered_accessibility_review(
-                    rendered_target,
-                    audit_provider_cfg,
-                    html=target_html.strip() if audit_mode == "HTML" and target_html.strip() else None,
-                )
-                st.session_state.last_rendered_a11y_result = rendered_result
-                if rendered_result.get("playwright_available"):
-                    st.success("Rendered accessibility review complete.")
+                if not rendered_target:
+                    st.warning("Enter a Target URL or provide HTML before running the rendered accessibility review.")
                 else:
-                    st.info(rendered_result.get("summary", "Rendered accessibility review unavailable."))
+                    rendered_result = run_rendered_accessibility_review(
+                        rendered_target,
+                        audit_provider_cfg,
+                        html=target_html.strip() if rendered_inline_html else None,
+                    )
+                    st.session_state.last_rendered_a11y_result = rendered_result
+                    if rendered_result.get("playwright_available"):
+                        st.success("Rendered accessibility review complete.")
+                    else:
+                        st.info(rendered_result.get("summary", "Rendered accessibility review unavailable."))
             except Exception as exc:
                 st.session_state.last_rendered_a11y_result = {"error": str(exc)}
                 _report_exception("Rendered accessibility review failed", exc, developer_mode)
@@ -2075,7 +2130,7 @@ def main() -> None:
 
             ### Notes
             - AI Mode requires a valid provider model and API key.
-            - Local Model Mode uses `http://localhost:11434/v1` by default.
+            - Local Model Mode uses `http://localhost:1234/v1` by default.
             - Demo Mode uses deterministic sample data.
             - Evidence retrieval falls back gracefully when a source is unavailable.
             - Export files are written locally.
@@ -2092,7 +2147,7 @@ def main() -> None:
             - **Modes**: Demo Mode is safe fallback data, AI Mode uses a hosted provider, and Local Model Mode targets a local OpenAI-compatible endpoint.
             - **Temperature**: Lower values are more deterministic; higher values are more varied. For medical writing, 0.2-0.3 is usually safest.
             - **Evidence retrieval**: The app merges Local Evidence Vault files with PubMed, FDA, EMA, and ClinicalTrials.gov when available.
-            - **Local model**: The default endpoint is `http://localhost:11434/v1`. Use Warm up Ollama and Tiny Local Test from the sidebar.
+            - **Local model**: The default endpoint is `http://localhost:1234/v1`. Use Warm up Local Model and Tiny Local Test from the sidebar.
             - **Exports**: JSON, Markdown, PDF, DOCX, XLSX, print-ready HTML, and Google Docs import templates are generated locally.
             """
         )

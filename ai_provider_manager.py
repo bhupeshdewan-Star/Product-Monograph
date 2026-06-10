@@ -84,14 +84,14 @@ class AIProviderManager:
         """Initialize Ollama (local models)"""
         try:
             import requests
-            ollama_url = os.getenv('OLLAMA_URL', 'http://localhost:11434')
+            ollama_url = os.getenv('LMSTUDIO_URL', os.getenv('OLLAMA_URL', 'http://localhost:1234'))
             # Test connection
             try:
-                requests.get(f"{ollama_url}/api/tags", timeout=5)
-                print(f"[OK] Connected to Ollama at {ollama_url}")
+                requests.get(f"{ollama_url}/v1/models", timeout=5)
+                print(f"[OK] Connected to local model server at {ollama_url}")
             except:
-                print(f"[WARN] Warning: Cannot reach Ollama at {ollama_url}")
-                print("Start Ollama with: ollama serve")
+                print(f"[WARN] Warning: Cannot reach local model server at {ollama_url}")
+                print("Start LM Studio and enable the local OpenAI-compatible server.")
             return ollama_url
         except ImportError:
             print("Error: requests package not installed")
@@ -173,24 +173,22 @@ class AIProviderManager:
         try:
             import requests
             response = requests.post(
-                f"{self.client}/api/generate",
+                f"{self.client}/v1/chat/completions",
                 json={
                     "model": self.model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "num_predict": max_tokens,
-                        "temperature": 0.3
-                    }
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": max_tokens,
                 }
             )
             if response.status_code == 200:
-                return response.json()['response']
+                data = response.json()
+                return data["choices"][0]["message"]["content"]
             else:
-                print(f"Ollama error: {response.status_code}")
+                print(f"Local model server error: {response.status_code}")
                 return ""
         except Exception as e:
-            print(f"Error with Ollama: {e}")
+            print(f"Error with local model server: {e}")
             return ""
 
     def _generate_groq(self, prompt: str, max_tokens: int) -> str:
@@ -232,11 +230,11 @@ class AIProviderManager:
    - Setup: OPENROUTER_API_KEY
    - Website: https://openrouter.ai/
 
-3. OLLAMA (Local - Free)
-   - Models: LLaMA, Mistral, Neurberus (run locally)
+3. LOCAL MODEL SERVER (LM Studio / OpenAI-compatible local)
+   - Models: Any model exposed by LM Studio or a compatible local server
    - Cost: $0 (runs on your machine)
-   - Setup: Install Ollama, run 'ollama serve'
-   - Website: https://ollama.ai/
+   - Setup: Install LM Studio, enable the local server, and load a model
+   - Website: https://lmstudio.ai/
 
 4. TOGETHER.AI
    - Models: Open source models (LLaMA, Mistral, etc.)
@@ -263,10 +261,11 @@ AI_PROVIDER=openrouter
 OPENROUTER_API_KEY=sk-or-xxxxx
 OPENROUTER_MODEL=anthropic/claude-3-haiku
 
-# Option 3: Use Ollama (Local, Free)
+# Option 3: Use LM Studio (Local, Free)
 AI_PROVIDER=ollama
-OLLAMA_URL=http://localhost:11434
-OLLAMA_MODEL=llama2
+LMSTUDIO_URL=http://localhost:1234
+OLLAMA_URL=http://localhost:1234
+OLLAMA_MODEL=phi-3.1-mini-4k-instruct
 
 # Option 4: Use Groq (Fast)
 AI_PROVIDER=groq

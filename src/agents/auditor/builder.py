@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 from typing import Optional
 
 from ..providers.base import ProviderConfig, ProviderError
@@ -12,6 +13,26 @@ from .schema_store import save_schema
 from .schemas import AuditCriterion, AuditSchema
 
 logger = logging.getLogger(__name__)
+
+
+FALLBACK_CHECKLIST_HTML = """
+<html>
+  <head>
+    <title>Landing Page Audit Checklist</title>
+  </head>
+  <body>
+    <main>
+      <h1>Landing Page Audit Checklist</h1>
+      <ul>
+        <li>Ensure images have descriptive alt text.</li>
+        <li>Use a clear heading hierarchy.</li>
+        <li>Maintain readable contrast for text and controls.</li>
+        <li>Provide labels for all form fields.</li>
+      </ul>
+    </main>
+  </body>
+</html>
+"""
 
 
 def _infer_audit_type(title: str, source_text: str) -> str:
@@ -159,7 +180,16 @@ def build_audit_schema(
     *,
     fetcher=fetch_url,
 ) -> dict:
-    page = fetcher(checklist_url)
+    fetch_warning = None
+    try:
+        page = fetcher(checklist_url)
+    except Exception as exc:
+        fetch_warning = str(exc)
+        logger.warning("Checklist fetch failed, using local fallback: %s", exc)
+        page = SimpleNamespace(
+            html=FALLBACK_CHECKLIST_HTML,
+            final_url="inline://audit-checklist",
+        )
     doc = parse_checklist_document(page.html, page.final_url)
     title = doc.get("title") or doc.get("h1") or "Checklist"
     audit_type = _infer_audit_type(title, doc.get("source_text", ""))
@@ -181,6 +211,9 @@ def build_audit_schema(
             "criteria_count": len(criteria),
         },
     )
+    if fetch_warning:
+        schema.metadata["source_fetch_warning"] = fetch_warning
+        schema.metadata["source_fetch_fallback"] = True
 
     if ai_provider and ai_provider.provider:
         try:
@@ -206,6 +239,7 @@ def build_audit_schema(
         "schema_id": schema.schema_id,
         "source_url": checklist_url,
         "source_title": schema.source_title,
+        "source_fetch_warning": fetch_warning,
         "schema": schema.model_dump(mode="json"),
         "generated_schema_path": str(path),
     }

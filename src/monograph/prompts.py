@@ -83,7 +83,7 @@ def build_local_compact_section_prompt(
     evidence_context = research_sources.get("evidence_context") or research_sources.get("formatted_text", "")
     evidence_package = research_sources.get("evidence_package", {})
     retrieved_with = research_sources.get("retrieved_with", {}) or {}
-    compact_chars = int(retrieved_with.get("local_compact_evidence_chars") or 6000)
+    compact_chars = int(retrieved_with.get("local_compact_evidence_chars") or 3000)
     section_markers = markers_for_section(section_name, collect_source_markers(evidence_package))
     source_summary = {
         "total_articles": research_sources.get("total_articles", 0),
@@ -99,7 +99,7 @@ You are drafting a concise pharmaceutical product monograph section for a local 
 MOLECULE: {molecule_name}
 SECTION: {section_spec.get('title', section_name)}
 
-Write a compact, evidence-based section in approximately 120-260 words.
+Write a compact, evidence-based section in approximately 80-160 words.
 Do not include raw JSON, long SOP instructions, or a verbose regulatory appendix.
 Use only the compact evidence summary below. Keep the language clinical and concise.
 Every scientific statement must carry a source identifier when supported.
@@ -175,7 +175,7 @@ def build_local_compact_executive_summary_prompt(molecule_name: str, specialty: 
     audience = specialty.strip() if specialty and specialty.strip() else "general clinical practice"
     evidence_context = sources.get("evidence_context") or sources.get("formatted_text", "")
     retrieved_with = sources.get("retrieved_with", {}) or {}
-    compact_chars = int(retrieved_with.get("local_compact_evidence_chars") or 6000)
+    compact_chars = int(retrieved_with.get("local_compact_evidence_chars") or 3000)
     return f"""
 Create a concise executive summary for {molecule_name}.
 
@@ -183,7 +183,7 @@ Target audience: {audience}
 Evidence base: {article_count} total source(s)
 
 Use only the compact evidence summary below.
-Write 2 to 3 short paragraphs, keep the tone clinical, and avoid long appendix-style text.
+Write 1 to 2 short paragraphs, keep the tone clinical, and avoid long appendix-style text.
 State evidence limitations clearly if the evidence package is limited.
 
 COMPACT EVIDENCE SUMMARY (first {compact_chars} characters max):

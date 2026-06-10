@@ -10,7 +10,7 @@ from src.agents.providers.base import ProviderError
 
 
 class ProviderTimeoutTest(unittest.TestCase):
-    def test_local_loopback_timeout_is_extended_to_300_seconds(self) -> None:
+    def test_local_loopback_timeout_is_capped_for_interactive_use(self) -> None:
         provider = OpenAIProvider(base_url="http://localhost:11434/v1", timeout=60)
         response = Mock()
         response.status_code = 200
@@ -32,7 +32,7 @@ class ProviderTimeoutTest(unittest.TestCase):
             )
 
         self.assertEqual(output, "ok")
-        self.assertEqual(observed_timeouts, [300.0])
+        self.assertEqual(observed_timeouts, [60])
 
     def test_cloud_timeout_keeps_default_provider_timeout(self) -> None:
         provider = OpenAIProvider(base_url="https://api.openai.com/v1", timeout=60)
