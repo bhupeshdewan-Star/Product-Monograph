@@ -1,0 +1,3 @@
+Approved label text for paracetamol.
+Section 4.1 Therapeutic indications.
+Section 4.2 Posology and method of administration.
